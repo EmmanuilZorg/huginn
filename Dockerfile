@@ -10,9 +10,10 @@ RUN apt-get update -qq && apt-get install -y \
 WORKDIR /app
 COPY . /app
 
+COPY .env.example .env  # <-- add this line
+
 # Устанавливаем версию Bundler из lock-файла
 RUN gem install bundler -v "$(grep -A1 'BUNDLED WITH' Gemfile.lock | tail -n1)" || gem install bundler
-COPY .env.example .env
 
 RUN bundle install --without development test || { bundle config unset deployment; bundle install; }
 
