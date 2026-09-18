@@ -11,8 +11,8 @@ db/*.sqlite3
 public/system/*
 coverage
 spec/tmp/*
+node_modules
 .travis.yml
-build_docker_image.sh
 
 # Copied from .gitignore
 *.rbc
@@ -27,12 +27,18 @@ pickle-email-*.html
 .idea/
 .DS_Store
 .env
+.env.*
+!.env.example
 deployment/tmp
 deployment/cookbooks
 .vagrant
 .*un~
+.mise.local.toml
+mise.local.toml
 .ruby-gemset
 .ruby-version
 manifest.yml
-config/unicorn.rb
 db/schema.rb
+.local/
+.tmp
+spec/examples.txt

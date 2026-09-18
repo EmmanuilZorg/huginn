@@ -22,6 +22,12 @@ class WebRequestsController < ApplicationController
   skip_before_action :authenticate_user!
   wrap_parameters false
 
+  # Responses are authored by Agents, and thus by users, yet served from the
+  # application origin.  Sandbox them so that any active content they carry
+  # runs in an opaque origin, without access to the viewer's session or to
+  # the application as the same origin.
+  CONTENT_SECURITY_POLICY = 'sandbox allow-scripts allow-forms allow-popups'.freeze
+
   def handle_request
     user = User.find_by_id(params[:user_id])
     if user
@@ -34,11 +40,12 @@ class WebRequestsController < ApplicationController
             response.headers[k] = v
           end
         end
+        response.headers['Content-Security-Policy'] = CONTENT_SECURITY_POLICY
 
         status ||= 200
 
         if status.to_s.in?(%w[301 302])
-          redirect_to(content, allow_other_host: true, status:)
+          redirect_to(normalize_redirect_target(content), allow_other_host: true, status:)
         elsif content.is_a?(String)
           render plain: content, status:, content_type: content_type || 'text/plain'
         elsif content.is_a?(Hash)
@@ -65,5 +72,11 @@ class WebRequestsController < ApplicationController
     else
       render plain: 'user not found', status: :not_found
     end
+  end
+
+  private
+
+  def normalize_redirect_target(target)
+    URI(request.original_url).merge(target.to_s).to_s
   end
 end

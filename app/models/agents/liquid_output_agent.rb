@@ -32,6 +32,8 @@ module Agents
 
         The content you provide will be run as a [Liquid](https://github.com/huginn/huginn/wiki/Formatting-Events-using-Liquid) template. The data from the last event received will be used when processing the Liquid template.
 
+        Liquid does not escape values, so when producing HTML, apply the `escape` filter to any data taken from events, e.g. `{{ title | escape }}`.  Pages served by this Agent are sandboxed by a `Content-Security-Policy` header so that scripts in them run in an opaque origin without access to the Huginn session.
+
         # Modes
 
         ### Merge events
@@ -87,7 +89,7 @@ module Agents
         </table>
       EOF
       {
-        "secret" => "a-secret-key",
+        "secret" => SecureRandom.uuid,
         "expected_receive_period_in_days" => 2,
         "mime_type" => 'text/html',
         "mode" => 'Last event in',

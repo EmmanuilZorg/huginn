@@ -9,6 +9,8 @@ class ScenarioImport
 
   DANGEROUS_AGENT_TYPES = %w[Agents::ShellCommandAgent]
   URL_REGEX = /\Ahttps?:\/\//i
+  FETCH_TIMEOUT = 10
+  MAX_FETCH_SIZE = 5.megabytes
 
   attr_accessor :file, :url, :data, :do_import, :merges
 
@@ -66,11 +68,14 @@ class ScenarioImport
     icon = parsed_data['icon']
     source_url = parsed_data['source_url'].presence || nil
     @scenario = user.scenarios.where(:guid => guid).first_or_initialize
-    @scenario.update!(name: name, description: description,
-                                 source_url: source_url, public: false,
-                                 tag_fg_color: tag_fg_color,
-                                 tag_bg_color: tag_bg_color,
-                                 icon: icon)
+    unless @scenario.update(name: name, description: description,
+                            source_url: source_url, public: false,
+                            tag_fg_color: tag_fg_color,
+                            tag_bg_color: tag_bg_color,
+                            icon: icon)
+      errors.add(:base, "Errors when saving the Scenario: #{@scenario.errors.full_messages.to_sentence}")
+      return false
+    end
 
     unless options[:skip_agents]
       created_agents = agent_diffs.map do |agent_diff|
@@ -122,9 +127,23 @@ class ScenarioImport
   end
 
   def fetch_url
-    if data.blank? && url.present? && url =~ URL_REGEX
-      self.data = Faraday.get(url).body
-    end
+    return unless data.blank? && url.present? && url =~ URL_REGEX
+
+    self.data = fetch_scenario(url)
+  rescue URI::Error, Faraday::Error => e
+    Rails.logger.info("Scenario import from #{url} failed: #{e.class}")
+    errors.add(:url, "could not be fetched")
+  end
+
+  def fetch_scenario(url)
+    Faraday.new(request: {
+      timeout: NetworkTimeout.timeout(FETCH_TIMEOUT),
+      open_timeout: NetworkTimeout.open_timeout(FETCH_TIMEOUT),
+    }) { |builder|
+      builder.response :follow_redirects
+      builder.response :raise_error
+      builder.use Faraday::Response::SizeLimit, limit: MAX_FETCH_SIZE
+    }.get(url).body.force_encoding(Encoding::UTF_8)
   end
 
   def validate_data

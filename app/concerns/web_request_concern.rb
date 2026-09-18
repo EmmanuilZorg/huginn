@@ -71,9 +71,12 @@ module WebRequestConcern
 
     if options['proxy'].present?
       errors.add(:base, "proxy must be a string") unless options['proxy'].is_a?(String)
+      if OutboundProxy.enforced?
+        errors.add(:base, "proxy cannot be set because outbound requests of this Huginn instance go through OUTBOUND_PROXY")
+      end
     end
 
-    if options['disable_ssl_verification'].present? && boolify(options['disable_ssl_verification']).nil?
+    if option_provided?(options['disable_ssl_verification']) && boolify(options['disable_ssl_verification']).nil?
       errors.add(:base, "if provided, disable_ssl_verification must be true or false")
     end
 
@@ -133,10 +136,11 @@ module WebRequestConcern
 
       builder.headers[:user_agent] = user_agent
 
-      builder.proxy = interpolated['proxy'].presence
+      if (proxy = OutboundProxy.url || interpolated['proxy'].presence)
+        builder.proxy = proxy
+      end
 
       unless boolify(interpolated['disable_redirect_follow'])
-        require 'faraday/follow_redirects'
         builder.response :follow_redirects
       end
 
@@ -147,7 +151,10 @@ module WebRequestConcern
         builder.options.params_encoder = DoNotEncoder
       end
 
-      builder.options.timeout = (Delayed::Worker.max_run_time.seconds - 2).to_i
+      builder.options.open_timeout = NetworkTimeout.open_timeout
+      builder.options.timeout = NetworkTimeout.timeout
+      builder.options.read_timeout = NetworkTimeout.timeout
+      builder.options.write_timeout = NetworkTimeout.timeout
 
       if userinfo = basic_auth_credentials
         builder.request :authorization, :basic, *userinfo

@@ -92,6 +92,18 @@ describe WebRequestsController do
     expect(response.headers['Access-Control-Allow-Origin']).to eq('*')
   end
 
+  it "sandboxes the response with a Content-Security-Policy header" do
+    post :handle_request, params: { user_id: users(:bob).to_param, agent_id: @agent.id, secret: "my_secret" }
+    expect(response.headers['Content-Security-Policy']).to eq('sandbox allow-scripts allow-forms allow-popups')
+  end
+
+  it "does not let custom response headers override the Content-Security-Policy header" do
+    @agent.memory['response_headers'] = {"Content-Security-Policy" => "default-src *", "content-security-policy" => "default-src *"}
+    @agent.save!
+    post :handle_request, params: { user_id: users(:bob).to_param, agent_id: @agent.id, secret: "my_secret" }
+    expect(response.headers['Content-Security-Policy']).to eq('sandbox allow-scripts allow-forms allow-popups')
+  end
+
   it "can accept multiple custom response headers to return" do
     @agent.memory['response_headers'] = {"Access-Control-Allow-Origin" => "*", "X-My-Custom-Header" => "hello"}
     @agent.save!
@@ -104,7 +116,7 @@ describe WebRequestsController do
     @agent.options['status'] = 302
     @agent.save
     post :handle_request, params: {:user_id => users(:bob).to_param, :agent_id => @agent.id, :secret => "my_secret"}, format: :json
-    expect(response).to redirect_to('success')
+    expect(response).to redirect_to("http://test.host/users/#{users(:bob).to_param}/web_requests/#{@agent.id}/success")
   end
 
   it "should fail on incorrect users" do

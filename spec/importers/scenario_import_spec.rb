@@ -143,6 +143,52 @@ describe ScenarioImport do
         subject.url = "http://example.com/scenarios/1/export.json"
         expect(subject).to be_valid
       end
+
+      it "should follow redirects" do
+        stub_request(:get, "http://example.com/scenarios/1")
+          .to_return(:status => 302, :headers => { "Location" => "http://example.com/scenarios/1/export.json" })
+        stub_request(:get, "http://example.com/scenarios/1/export.json").to_return(:status => 200, :body => valid_data)
+        subject.url = "http://example.com/scenarios/1"
+        expect(subject).to be_valid
+      end
+
+      it "should report fetch failures uniformly" do
+        stub_request(:get, "http://example.com/refused").to_raise(Errno::ECONNREFUSED)
+        stub_request(:get, "http://example.com/timeout").to_timeout
+        stub_request(:get, "http://example.com/missing").to_return(:status => 404, :body => "nope")
+
+        %w[refused timeout missing].each do |path|
+          import = ScenarioImport.new(:url => "http://example.com/#{path}")
+          import.set_user(user)
+          expect(import).not_to be_valid
+          expect(import.errors[:url]).to eq(["could not be fetched"])
+        end
+      end
+
+      it "should go through OUTBOUND_PROXY when it is set" do
+        allow(ENV).to receive(:[]).and_call_original
+        allow(ENV).to receive(:[]).with('OUTBOUND_PROXY').and_return('http://smokescreen:4750')
+        OutboundProxy.configure!
+        stub_request(:get, "http://example.com/scenarios/1/export.json").to_return(:status => 200, :body => valid_data)
+        expect(Faraday).to receive(:new).and_wrap_original { |original, *args, &block|
+          original.call(*args, &block).tap { |connection|
+            expect(connection.proxy.uri.to_s).to eq('http://smokescreen:4750')
+          }
+        }
+        subject.url = "http://example.com/scenarios/1/export.json"
+        expect(subject).to be_valid
+      ensure
+        allow(ENV).to receive(:[]).with('OUTBOUND_PROXY').and_return(nil)
+        OutboundProxy.configure!
+      end
+
+      it "should refuse an oversized response" do
+        stub_request(:get, "http://example.com/huge.json")
+          .to_return(:status => 200, :body => "x" * (ScenarioImport::MAX_FETCH_SIZE + 1))
+        subject.url = "http://example.com/huge.json"
+        expect(subject).not_to be_valid
+        expect(subject.errors[:url]).to eq(["could not be fetched"])
+      end
     end
 
     describe "file" do
@@ -196,6 +242,18 @@ describe ScenarioImport do
           expect(scenario_import.scenario.icon).to eq(icon)
           expect(scenario_import.scenario.source_url).to eq(source_url)
           expect(scenario_import.scenario.public).to be_falsey
+        end
+
+        context "with an invalid scenario attribute" do
+          let(:icon) { "x'><script>alert(1)</script>" }
+
+          it "fails without creating anything" do
+            expect {
+              expect(scenario_import.import).to be_falsey
+            }.not_to change { [users(:bob).scenarios.count, users(:bob).agents.count] }
+
+            expect(scenario_import.errors[:base].join).to include("Icon must be a valid icon name.")
+          end
         end
 
         it "creates the Agents" do

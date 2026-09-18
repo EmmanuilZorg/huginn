@@ -30,12 +30,15 @@ If your database user does not have the permission to create the Huginn database
 
 This script will run database migrations (rake db:migrate) which should be idempotent.
 
+The Rails secret is taken from the environment variable ``APP_SECRET_TOKEN``.  If it is not set, a random one is generated when the container starts, which invalidates existing sessions whenever the container is recreated.  To keep sessions across restarts, set it to a random value of your own, e.g. the output of ``openssl rand -hex 64``.
+
 It will also seed the database (rake db:seed) unless this is defined:
 
     DO_NOT_SEED
 
-This same seeding initially defines the "admin" user with a default password of "password" as per the standard Huginn documentation.
-You can customize the admin account name with the environment variable ``SEED_USERNAME`` and ``SEED_PASSWORD``.
+This same seeding initially defines the "admin" user as per the standard Huginn documentation.
+You can customize the admin account name and password with the environment variables ``SEED_USERNAME`` and ``SEED_PASSWORD``.
+If ``SEED_PASSWORD`` is not set, a random password is generated and printed once in the container log; note it down.
 
 If you do not wish to have the default 6 agents, you will want to set the above environment variable after your initially deploy, otherwise they will be added automatically the next time a container pointing at the database is spun up.
 
@@ -47,6 +50,17 @@ Simple startup using docker compose (you need to daemonize with `-d` to persist 
 
     cd docker/single-process
     docker-compose up
+
+If you already have a MySQL 5.7 data volume, cleanly shut it down before the first MySQL 8.0 start:
+
+    cd docker/single-process
+    docker-compose stop web threaded
+    docker-compose exec mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SET GLOBAL innodb_fast_shutdown = 0"'
+    docker-compose stop mysql
+    docker-compose pull mysql mysqldata
+    docker-compose up -d
+
+Run this while the old MySQL 5.7 container is still available.  The MySQL 8.0 Docker image automatically performs the data dictionary upgrade when it starts with the existing data volume.
 
 or if you like to use PostgreSQL:
 
@@ -85,6 +99,10 @@ or alternatively:
         -e DATABASE_PASSWORD=somethingsecret \
         -e WORKER_CMD='bin/threaded.rb' \
         ghcr.io/huginn/huginn-single-process
+
+## Restricting outbound requests
+
+Both images bundle [Smokescreen](https://github.com/stripe/smokescreen), an egress proxy that refuses connections to private, loopback and link-local addresses.  Set `ENABLE_SMOKESCREEN=true` to start it inside the container and route all outbound HTTP(S) requests made by Agents through it; `OUTBOUND_PROXY` is then set to `http://127.0.0.1:4750` automatically.  Use this on instances where untrusted users can create Agents.  Internal services that Agents legitimately need can be allowed with `SMOKESCREEN_OPTS`, e.g. `SMOKESCREEN_OPTS=--allow-address=intranet.example.com:443`.  See [doc/manual/outbound-requests.md](../../doc/manual/outbound-requests.md) for details and limitations.
 
 ## Environment Variables
 

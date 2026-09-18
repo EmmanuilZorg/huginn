@@ -71,7 +71,9 @@ module Agents
     end
 
     def deliver(text)
-      client.send Jabber::Message.new(interpolated['jabber_receiver'], text).set_type(:chat)
+      NetworkTimeout.within do
+        client.send Jabber::Message.new(interpolated['jabber_receiver'], text).set_type(:chat)
+      end
     end
 
     def start_worker?
@@ -81,9 +83,11 @@ module Agents
     private
 
     def client
-      Jabber::Client.new(Jabber::JID.new(interpolated['jabber_sender'])).tap do |sender|
-        sender.connect(interpolated['jabber_server'], interpolated['jabber_port'] || '5222')
-        sender.auth interpolated['jabber_password']
+      NetworkTimeout.within do
+        Jabber::Client.new(Jabber::JID.new(interpolated['jabber_sender'])).tap do |sender|
+          sender.connect(interpolated['jabber_server'], interpolated['jabber_port'] || '5222')
+          sender.auth interpolated['jabber_password']
+        end
       end
     end
 
@@ -124,7 +128,9 @@ module Agents
         time, nick, message = normalize_args(event, args)
 
         AgentRunner.with_connection do
-          agent.create_event(payload: { event:, time:, nick:, message: })
+          Agent.with_execution_lock(agent.id) do |locked_agent|
+            locked_agent.create_event(payload: { event:, time:, nick:, message: })
+          end
         end
       end
 

@@ -68,8 +68,9 @@ describe Agents::DeDuplicationAgent do
     it "isnt when event created outside :expected_update_period_in_days" do
       @checker.options[:expected_update_period_in_days] = 2
 
-      travel 49.hours do
-          expect(@checker).not_to be_working
+      # Add more than 1 hour to 2 days to avoid DST boundary issues
+      travel 50.hours do
+        expect(@checker).not_to be_working
       end
     end
   end
@@ -135,6 +136,20 @@ describe Agents::DeDuplicationAgent do
         @checker.receive([@event])
       }.to change(Event, :count).by(1)
       expect(@checker.memory['properties'].last).to eq('3023526198')
+    end
+
+    it "treats equivalent payloads with different key order as duplicates when using the whole event" do
+      @checker.options['property'] = ''
+      first_event = Event.create!(agent: agents(:jane_weather_agent), payload: { 'a' => 1, 'b' => 2 })
+      second_event = Event.create!(agent: agents(:jane_weather_agent), payload: { 'b' => 2, 'a' => 1 })
+
+      expect {
+        @checker.receive([first_event])
+      }.to change(Event, :count).by(1)
+
+      expect {
+        @checker.receive([second_event])
+      }.not_to change(Event, :count)
     end
 
     it "should still work after the memory was cleared" do
