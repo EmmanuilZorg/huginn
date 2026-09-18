@@ -1,4 +1,4 @@
-FROM ruby:3.2.4
+FROM rubylang/ruby:4.0.6-jammy
 RUN apt-get update -qq && apt-get install -y build-essential libpq-dev nodejs yarn curl gnupg
 WORKDIR /app
 COPY . .
