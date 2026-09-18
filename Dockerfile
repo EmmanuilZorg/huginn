@@ -8,4 +8,5 @@ RUN gem install bundler -v "$(grep -A1 'BUNDLED WITH' Gemfile.lock | tail -n1)" 
 RUN bundle config set without 'development test' && bundle install
 RUN bundle exec rake assets:precompile
 RUN bundle exec rake assets:clean
-CMD ["bundle", "exec", "foreman", "start"]
+RUN chmod +x bin/render_start.sh
+CMD ["bin/render_start.sh"]

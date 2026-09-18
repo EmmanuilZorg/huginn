@@ -1,17 +1,16 @@
 # Huginn for Render.com (Docker)
 
-## Шаги
+## Развёртывание
 
-1. Разверни PostgreSQL сервис на Render
-2. В Render UI создай Web Service на основе этого репозитория
-3. Убедись, что `.env` переменные заданы в Render → Environment
-4. Запустится Huginn
+В репозитории есть готовый `render.yaml`. Создайте Blueprint в Render из этого
+репозитория и примените его. Blueprint автоматически создаёт PostgreSQL,
+передаёт приложению реальные параметры подключения и запускает миграции перед
+стартом web/jobs-процессов.
 
-## Переменные окружения
+После первого запуска задайте в настройках Web Service переменные `SEED_PASSWORD`
+и `SEED_EMAIL` (либо оставьте значения по умолчанию, если они уже заданы), а
+также `DOMAIN`, если нужны корректные ссылки в письмах и OAuth callback URL.
 
-- DATABASE_ADAPTER=postgresql
-- DATABASE_HOST=your-postgres-host.render.com
-- DATABASE_USERNAME=render_user
-- DATABASE_PASSWORD=your_password
-- DATABASE_NAME=huginn_production
-- FORCE_SSL=false
+Не указывайте `your-postgres-host.render.com` или другие placeholder-значения:
+адрес, пользователь, пароль и имя базы приходят из Render Postgres через
+`fromDatabase` в `render.yaml`.

@@ -1,5 +1,61 @@
+databases:
+  - name: huginn-db
+    plan: free
+    databaseName: huginn_production
+    user: huginn
+
 services:
   - type: web
     name: huginn
     env: docker
     plan: free
+    healthCheckPath: /
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_LOG_TO_STDOUT
+        value: "true"
+      - key: RAILS_SERVE_STATIC_FILES
+        value: "true"
+      - key: DATABASE_ADAPTER
+        value: postgresql
+      - key: DATABASE_HOST
+        fromDatabase:
+          name: huginn-db
+          property: host
+      - key: DATABASE_PORT
+        fromDatabase:
+          name: huginn-db
+          property: port
+      - key: DATABASE_USERNAME
+        fromDatabase:
+          name: huginn-db
+          property: user
+      - key: DATABASE_PASSWORD
+        fromDatabase:
+          name: huginn-db
+          property: password
+      - key: DATABASE_NAME
+        fromDatabase:
+          name: huginn-db
+          property: database
+      - key: DATABASE_SSLMODE
+        value: require
+      - key: FORCE_SSL
+        value: "false"
+      - key: APP_SECRET_TOKEN
+        generateValue: true
+      - key: SEED_PASSWORD
+        sync: false
+      - key: SEED_EMAIL
+        sync: false
+      - key: SEED_USERNAME
+        value: admin
+      - key: DOMAIN
+        sync: false
+      - key: SMTP_DELIVERY_METHOD
+        value: smtp
+      - key: SMTP_DOMAIN
+        value: localhost
+      - key: EMAIL_FROM_ADDRESS
+        value: huginn@localhost
