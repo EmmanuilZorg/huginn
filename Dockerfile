@@ -4,6 +4,7 @@ WORKDIR /app
 COPY . .
 COPY .env.example .env
 ENV RAILS_ENV=production
+ENV DATABASE_ADAPTER=postgresql
 RUN gem install bundler -v "$(grep -A1 'BUNDLED WITH' Gemfile.lock | tail -n1)" || gem install bundler
 RUN bundle config set without 'development test' && bundle install
 RUN bundle exec rake assets:precompile
