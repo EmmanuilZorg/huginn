@@ -7,6 +7,7 @@ ENV RAILS_ENV=production
 ENV DATABASE_ADAPTER=postgresql
 RUN gem install bundler -v "$(grep -A1 'BUNDLED WITH' Gemfile.lock | tail -n1)" || gem install bundler
 RUN bundle config set without 'development test' && bundle install
+RUN npm install --omit=dev
 RUN bundle exec rake assets:precompile
 RUN bundle exec rake assets:clean
 RUN chmod +x bin/render_start.sh
